@@ -67,6 +67,7 @@ try:
     from seahub.settings import MULTI_TENANCY
 except ImportError:
     MULTI_TENANCY = False
+from seahub.utils.two_factor_auth import HAS_TWO_FACTOR_AUTH
 
 logger = logging.getLogger(__name__)
 
@@ -2155,15 +2156,18 @@ def sys_settings(request):
     """List and change seahub settings in admin panel.
     """
 
-    DIGIT_WEB_SETTINGS = (
+    DIGIT_WEB_SETTINGS = [
         'DISABLE_SYNC_WITH_ANY_FOLDER', 'ENABLE_SIGNUP',
         'ACTIVATE_AFTER_REGISTRATION', 'REGISTRATION_SEND_MAIL',
         'LOGIN_REMEMBER_DAYS', 'REPO_PASSWORD_MIN_LENGTH',
         'ENABLE_REPO_HISTORY_SETTING', 'USER_STRONG_PASSWORD_REQUIRED',
         'ENABLE_ENCRYPTED_LIBRARY', 'USER_PASSWORD_MIN_LENGTH',
         'USER_PASSWORD_STRENGTH_LEVEL', 'SHARE_LINK_PASSWORD_MIN_LENGTH',
-        'ENABLE_USER_CREATE_ORG_REPO', 'FORCE_PASSWORD_CHANGE'
-    )
+        'ENABLE_USER_CREATE_ORG_REPO', 'FORCE_PASSWORD_CHANGE',
+    ]
+
+    if HAS_TWO_FACTOR_AUTH:
+        DIGIT_WEB_SETTINGS.append('ENABLE_TWO_FACTOR_AUTH')
 
     STRING_WEB_SETTINGS = ('SERVICE_URL', 'FILE_SERVER_ROOT',)
 
@@ -2210,6 +2214,7 @@ def sys_settings(request):
 
     return render_to_response('sysadmin/settings.html', {
         'config_dict': config_dict,
+        'has_two_factor_auth': HAS_TWO_FACTOR_AUTH,
     }, context_instance=RequestContext(request))
 
 @login_required_ajax
