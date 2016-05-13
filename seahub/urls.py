@@ -32,6 +32,8 @@ from seahub.api2.endpoints.admin.perm_audit import PermAudit
 from seahub.api2.endpoints.admin.sysinfo import SysInfo
 from seahub.api2.endpoints.admin.devices import AdminDevices
 from seahub.api2.endpoints.admin.device_errors import AdminDeviceErrors
+from seahub.api2.endpoints.invitations import InvitationsView
+from seahub.api2.endpoints.invitation import InvitationView
 
 # Uncomment the next two lines to enable the admin:
 #from django.contrib import admin
@@ -197,6 +199,8 @@ urlpatterns = patterns(
     url(r'^api/v2.1/admin/sysinfo/$', SysInfo.as_view(), name='api-v2.1-sysinfo'),
     url(r'^api/v2.1/admin/devices/$', AdminDevices.as_view(), name='api-v2.1-admin-devices'),
     url(r'^api/v2.1/admin/device-errors/$', AdminDeviceErrors.as_view(), name='api-v2.1-admin-device-errors'),
+    url(r'^api/v2.1/invitations/$', InvitationsView.as_view()),
+    url(r'^api/v2.1/invitations/(?P<token>[a-f0-9]{32})/$', InvitationView.as_view()),
 
     (r'^avatar/', include('seahub.avatar.urls')),
     (r'^notification/', include('seahub.notifications.urls')),
@@ -210,6 +214,7 @@ urlpatterns = patterns(
     url(r'^captcha/', include('captcha.urls')),
     (r'^thumbnail/', include('seahub.thumbnail.urls')),
     url(r'^inst/', include('seahub.institutions.urls', app_name='institutions', namespace='institutions')),
+    url(r'^invite/', include('seahub.invitations.urls', app_name='invitations', namespace='invitations')),
 
     ### system admin ###
     url(r'^sysadmin/$', sysadmin, name='sysadmin'),
@@ -252,6 +257,7 @@ urlpatterns = patterns(
     url(r'^sys/publink/remove/$', sys_publink_remove, name='sys_publink_remove'),
     url(r'^sys/uploadlink/remove/$', sys_upload_link_remove, name='sys_upload_link_remove'),
     url(r'^sys/notificationadmin/', notification_list, name='notification_list'),
+    url(r'^sys/invitationadmin/$', sys_invitation_admin, name='sys_invitaion_admin'),
     url(r'^sys/sudo/', sys_sudo_mode, name='sys_sudo_mode'),
     url(r'^sys/check-license/', sys_check_license, name='sys_check_license'),
     url(r'^useradmin/add/$', user_add, name="user_add"),
