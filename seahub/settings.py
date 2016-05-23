@@ -533,12 +533,6 @@ ENABLED_ROLE_PERMISSIONS = {
         'can_export_files_via_mobile_client': False,
         # leave other permissions as same as 'default'
     },
-    'employee': {
-        'can_invite_guest': True,
-    },
-    'test': {
-        'can_add_repo': False,
-    }
 }
 
 #####################
