@@ -82,7 +82,7 @@ define([
             $('.yes', confirm_popup).click(function() {
                 $.ajax({
                     url: Common.getUrl({'name':'repo_del', 'repo_id': _this.model.get('id')}),
-                    type: 'POST',
+                    type: 'DELETE',
                     dataType: 'json',
                     beforeSend: Common.prepareCSRFToken,
                     success: function(data) {
