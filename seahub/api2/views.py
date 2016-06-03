@@ -22,10 +22,7 @@ from django.contrib.sites.models import RequestSite
 from django.db import IntegrityError
 from django.db.models import F, Q
 from django.http import HttpResponse
-from django.template import RequestContext
-from django.template.loader import render_to_string
 from django.template.defaultfilters import filesizeformat
-from django.shortcuts import render_to_response
 from django.utils import timezone
 from django.utils.translation import ugettext as _
 
@@ -34,7 +31,7 @@ from .authentication import TokenAuthentication
 from .serializers import AuthTokenSerializer
 from .utils import get_diff_details, \
     api_error, get_file_size, prepare_starred_files, \
-    get_groups, get_group_and_contacts, prepare_events, \
+    get_groups, get_group_and_contacts, \
     api_group_check, get_timestamp, json_response, is_seafile_pro, \
     api_repo_user_folder_perm_check, api_repo_setting_permission_check, \
     api_repo_group_folder_perm_check
@@ -72,8 +69,7 @@ from seahub.utils.file_types import DOCUMENT
 from seahub.utils.file_size import get_file_size_unit
 from seahub.utils.timeutils import utc_to_local, datetime_to_isoformat_timestr
 from seahub.views import is_registered_user, check_file_lock, \
-    group_events_data, get_diff, create_default_library, \
-    list_inner_pub_repos, get_virtual_repos_by_owner, \
+    create_default_library, list_inner_pub_repos, get_virtual_repos_by_owner, \
     check_folder_permission
 from seahub.views.ajax import get_share_in_repo_list, get_groups_by_user, \
     get_group_repos
@@ -115,10 +111,9 @@ import seaserv
 from seaserv import seafserv_threaded_rpc, \
     get_personal_groups_by_user, get_session_info, is_personal_repo, \
     get_repo, check_permission, get_commits, is_passwd_set,\
-    check_quota, list_share_repos, get_group_repos_by_owner, get_group_repoids, \
-    list_inner_pub_repos_by_owner, is_group_user, \
+    check_quota, get_group_repoids, is_group_user, \
     remove_share, unset_inner_pub_repo, get_group, \
-    get_commit, get_file_id_by_path, MAX_DOWNLOAD_DIR_SIZE, edit_repo, \
+    get_file_id_by_path, MAX_DOWNLOAD_DIR_SIZE, edit_repo, \
     ccnet_threaded_rpc, get_personal_groups, seafile_api, \
     create_org, ccnet_api
 
@@ -2856,21 +2851,68 @@ class SharedRepos(APIView):
     """
     List repos that a user share to others/groups/public.
     """
-    authentication_classes = (TokenAuthentication, )
+    authentication_classes = (TokenAuthentication, SessionAuthentication )
     permission_classes = (IsAuthenticated, )
     throttle_classes = (UserRateThrottle, )
 
     def get(self, request, format=None):
-        username = request.user.username
         shared_repos = []
+        username = request.user.username
 
-        shared_repos += list_share_repos(username, 'from_email', -1, -1)
-        shared_repos += get_group_repos_by_owner(username)
-        if not CLOUD_MODE:
-            shared_repos += list_inner_pub_repos_by_owner(username)
+        try:
+            if is_org_context(request):
+                org_id = request.user.org.org_id
+                shared_repos += seafile_api.get_org_share_out_repo_list(org_id, username, -1, -1)
+                shared_repos += seafile_api.get_org_group_repos_by_owner(org_id, username)
+                shared_repos += seafile_api.list_org_inner_pub_repos_by_owner(org_id, username)
+            else:
+                shared_repos += seafile_api.get_share_out_repo_list(username, -1, -1)
+                shared_repos += seafile_api.get_group_repos_by_owner(username)
+                if not request.cloud_mode:
+                    shared_repos += seaserv.list_inner_pub_repos_by_owner(username)
+        except Exception as e:
+            logger.error(e)
+            error_msg = 'Internal Server Error'
+            return api_error(status.HTTP_500_INTERNAL_SERVER_ERROR, error_msg)
 
-        return HttpResponse(json.dumps(shared_repos, cls=SearpcObjEncoder),
-                            status=200, content_type=json_content_type)
+        try:
+            is_virtual = int(request.GET.get('is_virtual', 0))
+        except ValueError:
+            return api_error(status.HTTP_400_BAD_REQUEST, 'is_virtual invalid.')
+
+        if is_virtual not in (0, 1):
+            return api_error(status.HTTP_400_BAD_REQUEST, 'is_virtual invalid.')
+
+        returned_result = []
+        for repo in shared_repos:
+            if bool(is_virtual) != bool(repo.is_virtual):
+                    continue
+
+            result = {}
+            result['repo_id'] = repo.origin_repo_id if repo.is_virtual else repo.repo_id
+            result['path'] = repo.origin_path if repo.is_virtual else '/'
+            result['virtual_repo_id'] = repo.repo_id if repo.is_virtual else ''
+            result['repo_name'] = repo.repo_name
+            result['share_type'] = repo.share_type
+            result['share_permission'] = repo.permission
+            result['encrypted'] = repo.encrypted
+
+            result['user_name'] = ''
+            result['user_email'] = ''
+            result['group_id'] = ''
+            result['group_name'] = ''
+            if repo.share_type == 'personal':
+                result['user_name'] = email2nickname(repo.user)
+                result['user_email'] = repo.user
+
+            if repo.share_type == 'group':
+                group = ccnet_api.get_group(repo.group_id)
+                result['group_id'] = repo.group_id
+                result['group_name'] = group.group_name
+
+            returned_result.append(result)
+
+        return Response(returned_result)
 
 class BeShared(APIView):
     """

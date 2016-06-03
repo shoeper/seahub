@@ -76,20 +76,25 @@ class DirSharedItemsEndpoint(APIView):
         share_type = request.GET.get('share_type', None)
         shared_to_user = False
         shared_to_group = False
+        shared_to_public = False
         if share_type:
             for e in share_type.split(','):
                 e = e.strip()
-                if e not in ['user', 'group']:
+                if e not in ['user', 'group', 'public']:
                     continue
+
                 if e == 'user':
                     shared_to_user = True
                 if e == 'group':
                     shared_to_group = True
+                if e == 'public':
+                    shared_to_public = True
         else:
             shared_to_user = True
             shared_to_group = True
+            shared_to_public = True
 
-        return (shared_to_user, shared_to_group)
+        return (shared_to_user, shared_to_group, shared_to_public)
 
     def get_sub_repo_by_path(self, request, repo, path):
         if path == '/':
@@ -168,7 +173,7 @@ class DirSharedItemsEndpoint(APIView):
         if username != self.get_repo_owner(request, repo_id):
             return api_error(status.HTTP_403_FORBIDDEN, 'Permission denied.')
 
-        shared_to_user, shared_to_group = self.handle_shared_to_args(request)
+        shared_to_user, shared_to_group, shared_to_public = self.handle_shared_to_args(request)
 
         permission = request.data.get('permission', 'r')
         if permission not in ['r', 'rw']:
@@ -232,6 +237,17 @@ class DirSharedItemsEndpoint(APIView):
                                                       permission)
 
             send_perm_audit_msg('modify-repo-perm', username, gid,
+                                repo_id, path, permission)
+
+        if shared_to_public:
+            if is_org_context(request):
+                org_id = request.user.org.org_id
+                seaserv.seafserv_threaded_rpc.set_org_inner_pub_repo(
+                    org_id, repo_id, permission)
+            else:
+                seafile_api.add_inner_pub_repo(repo_id, permission)
+
+            send_perm_audit_msg('modify-repo-perm', username, 'all', \
                                 repo_id, path, permission)
 
         return HttpResponse(json.dumps({'success': True}), status=200,

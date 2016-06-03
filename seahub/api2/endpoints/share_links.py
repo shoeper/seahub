@@ -1,3 +1,4 @@
+import os
 import logging
 from constance import config
 from dateutil.relativedelta import relativedelta
@@ -20,6 +21,7 @@ from seahub.api2.throttling import UserRateThrottle
 
 from seahub.share.models import FileShare, OrgFileShare
 from seahub.utils import gen_shared_link, is_org_context
+from seahub.utils.timeutils import datetime_to_isoformat_timestr
 
 logger = logging.getLogger(__name__)
 
@@ -28,13 +30,41 @@ def get_share_link_info(fileshare):
     data = {}
     token = fileshare.token
 
-    data['repo_id'] = fileshare.repo_id
-    data['path'] = fileshare.path
-    data['ctime'] = fileshare.ctime
+    repo_id = fileshare.repo_id
+    try:
+        repo = seafile_api.get_repo(repo_id)
+    except Exception as e:
+        logger.error(e)
+        repo = None
+
+    path = fileshare.path
+    if path:
+        obj_name = '/' if path == '/' else os.path.basename(path.rstrip('/'))
+    else:
+        obj_name = ''
+
+    if fileshare.expire_date:
+        expire_date = datetime_to_isoformat_timestr(fileshare.expire_date)
+    else:
+        expire_date = ''
+
+    if fileshare.ctime:
+        ctime = datetime_to_isoformat_timestr(fileshare.ctime)
+    else:
+        ctime = ''
+
+    data['repo_id'] = repo_id
+    data['repo_name'] = repo.repo_name if repo else ''
+
+    data['is_dir'] = True if fileshare.s_type == 'd' else False
+    data['path'] = path
+    data['obj_name'] = obj_name
+
+    data['ctime'] = ctime
     data['view_cnt'] = fileshare.view_cnt
     data['link'] = gen_shared_link(token, fileshare.s_type)
     data['token'] = token
-    data['expire_date'] = fileshare.expire_date
+    data['expire_date'] = expire_date
     data['is_expired'] = fileshare.is_expired()
     data['username'] = fileshare.username
 
