@@ -1,6 +1,6 @@
 -r requirements.txt
 
-fabric==1.14.0
+fabric==2.5.0
 transifex-client
 raven==5.0.0
 
